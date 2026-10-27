@@ -71,6 +71,18 @@ ODOT's roadside stills are **not a public API**. The image is served straight fr
 - **No CORS on the inventory file**, so the page can't re-resolve the filename by itself. If ODOT re-publishes the camera the image 404s, the page hides it and links out to TripCheck instead of showing a broken frame. To fix, re-read the inventory and update `CAM.cushman.url`.
 - There is a second camera in the inventory, `Siuslaw River Florence (USCG)` (`pid4901`) — it currently serves a **"This image is currently unavailable"** placeholder last updated 17 Oct, so the Florence view deliberately has no camera pane. Check `Last-Modified` before adding it.
 
+### Refresh behaviour
+
+The page keeps itself current, entirely in the visitor's browser — no server, no cron, no build, no API key, no LLM. That also means it costs nothing to run.
+
+| What | When | Requests per refresh |
+| --- | --- | --- |
+| Tide / river / alerts | every **10 min** while the tab is visible, plus immediately on tab focus if the last render is >60 s old | **2** NOAA + **1** USGS `nwis/iv` + **1** NWS = 4 |
+| Camera still | every **60 s** while visible, plus on tab focus | 1 image (~29 KB) |
+| Nothing at all | while the tab is hidden | 0 — a phone in a pocket doesn't poll |
+
+Two things are memoised for the session because they cannot change between polls: NOAA predictions for **tomorrow** (fetched only when today's high or low has already passed) and the USGS **p50 median**, which is a period-of-record statistic. Failures are never cached, so a transient outage retries on the next tick. The header carries a `· updated 3:14 PM` stamp so a stale tab is visibly stale rather than silently wrong.
+
 ## Data notes
 
 | | Florence | Cushman |

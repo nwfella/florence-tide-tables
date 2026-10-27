@@ -39,7 +39,7 @@
                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span> Connecting…
                         </span>
                     </h1>
-                    <p id="stationSubtitle" class="text-xs text-slate-400">Florence USCG Pier, Siuslaw River, OR • NOAA Station 9434098</p>
+                    <p class="text-xs text-slate-400"><span id="stationSubtitle">Florence USCG Pier, Siuslaw River, OR • NOAA Station 9434098</span><span id="asOf" class="text-slate-500"></span></p>
                 </div>
             </div>
 
@@ -362,6 +362,29 @@
         const CAM_REFRESH_MS = 60000;
         let camTimer = null;
 
+        // Data auto-refresh. Everything here is the visitor's browser calling free,
+        // keyless public APIs (NOAA / USGS / NWS) — no server, no Hermes cron, no LLM,
+        // no API key, so it costs nothing to leave running. 10 min matches the USGS
+        // gauge cadence; polling faster would only re-download identical numbers.
+        const DATA_REFRESH_MS = 600000;
+        const VISIBILITY_MIN_AGE_MS = 60000;   // don't refetch if we just rendered
+        let dataTimer = null;
+        let lastRenderAt = 0;
+
+        // Small promise memo for things that cannot change mid-session: NOAA
+        // predictions for a given date are static, and the USGS p50 median is a
+        // period-of-record statistic. Caching these keeps a 10-minute poll at ~2
+        // requests instead of 6. Failures are never cached.
+        const memo = new Map();
+        function cached(key, ttlMs, fn) {
+            const hit = memo.get(key);
+            if (hit && hit.expires > Date.now()) return hit.v;
+            return fn().then(v => {
+                memo.set(key, { v, expires: Date.now() + ttlMs });
+                return v;
+            }, err => { memo.delete(key); throw err; });
+        }
+
         lucide.createIcons();
 
         // ------------------------------------------------------------- utilities
@@ -518,21 +541,33 @@
 
             // Seasonal median for today's date. The USGS stat service is RDB-only,
             // so parse the tab-separated text instead of asking for JSON.
-            const now = new Date();
-            const statUrl = `https://waterservices.usgs.gov/nwis/stat/?format=rdb&sites=${ROAD.usgsSite}` +
-                '&statReportType=daily&statTypeCd=p50&parameterCd=00060';
             try {
-                const txt = await (await fetch(statUrl)).text();
-                const month = now.getMonth() + 1, day = now.getDate();
-                for (const line of txt.split('\n')) {
-                    if (!line.startsWith('USGS\t')) continue;
-                    const f = line.split('\t');
-                    if (+f[5] === month && +f[6] === day) { out.median = parseFloat(f[10]); break; }
-                }
-                out.monthly = fmtShortDate(localDateStr(now));
+                const med = await getMedian();
+                if (med) { out.median = med.median; out.monthly = med.monthly; }
             } catch (_) { /* median is optional context */ }
 
             return out;
+        }
+
+        // Period-of-record median for today's calendar day — memoised per day, since
+        // it cannot change between polls.
+        function getMedian() {
+            const now = new Date();
+            const month = now.getMonth() + 1, day = now.getDate();
+            const key = `p50:${ROAD.usgsSite}:${localDateStr(now)}`;
+            return cached(key, 6 * 3600e3, async () => {
+                const statUrl = `https://waterservices.usgs.gov/nwis/stat/?format=rdb&sites=${ROAD.usgsSite}` +
+                    '&statReportType=daily&statTypeCd=p50&parameterCd=00060';
+                const txt = await (await fetch(statUrl)).text();
+                for (const line of txt.split('\n')) {
+                    if (!line.startsWith('USGS\t')) continue;
+                    const f = line.split('\t');
+                    if (+f[5] === month && +f[6] === day) {
+                        return { median: parseFloat(f[10]), monthly: fmtShortDate(localDateStr(now)) };
+                    }
+                }
+                return null;
+            });
         }
 
         async function fetchAlerts() {
@@ -607,7 +642,8 @@
             if (isToday && windows.length === 0) {
                 // Nothing left today — look at tomorrow so the answer stays useful.
                 const tomorrow = localDateStr(new Date(now.getTime() + 864e5));
-                const next = await fetchNoaaTides(STATIONS.cushman.id, tomorrow);
+                const next = await cached(`tide:${STATIONS.cushman.id}:${tomorrow}`, 6 * 3600e3,
+                    () => fetchNoaaTides(STATIONS.cushman.id, tomorrow));
                 if (seq !== renderSeq) return;   // a newer render superseded this one
                 windows = exceedWindows(next.hourlyData, mark, null).map(w => ({ ...w, tomorrow: true }));
             }
@@ -753,8 +789,19 @@
         }
 
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && state.station === 'cushman') refreshCamera();
+            if (document.hidden) return;
+            // Phone unlock / tab switch back: refresh what's stale, skip what isn't.
+            if (state.station === 'cushman') refreshCamera();
+            if (lastRenderAt && Date.now() - lastRenderAt > VISIBILITY_MIN_AGE_MS) updateDashboard();
         });
+
+        function startPolling() {
+            if (dataTimer) return;
+            dataTimer = setInterval(() => {
+                if (document.hidden) return;          // don't burn data in a pocketed phone
+                updateDashboard();
+            }, DATA_REFRESH_MS);
+        }
 
         // ------------------------------------------------------------ chart bits
         const nowLinePlugin = {
@@ -980,7 +1027,11 @@
             // next HIGH is tomorrow's. Fill it in rather than showing "—" until midnight.
             if (isToday && (!nextHigh || !nextLow)) {
                 try {
-                    const tmr = await fetchNoaaTides(st.id, localDateStr(new Date(now.getTime() + 864e5)));
+                    const tmrStr = localDateStr(new Date(now.getTime() + 864e5));
+                    // Tomorrow's extremes are static predictions — memoise them for the
+                    // session so each poll doesn't re-download the same day twice.
+                    const tmr = await cached(`tide:${st.id}:${tmrStr}`, 6 * 3600e3,
+                        () => fetchNoaaTides(st.id, tmrStr));
                     if (seq !== renderSeq) return;
                     if (!nextHigh) nextHigh = tmr.extremes.find(e => e.type === 'High' && e.when >= now);
                     if (!nextLow) nextLow = tmr.extremes.find(e => e.type === 'Low' && e.when >= now);
@@ -1041,6 +1092,9 @@
             if (state.station === 'cushman') {
                 await renderRoadPanel(seq, tideData, isToday);
             }
+
+            lastRenderAt = Date.now();
+            document.getElementById('asOf').textContent = ` · updated ${shortTime(new Date())}`;
         }
 
         // Events
@@ -1079,7 +1133,10 @@
             }
         })();
 
-        window.addEventListener('load', updateDashboard);
+        window.addEventListener('load', () => {
+            updateDashboard();
+            startPolling();
+        });
     </script>
 </body>
 </html>
