@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Florence, OR — Live NOAA Tide Tracker</title>
-    <meta name="description" content="Live NOAA tide predictions for Florence, Oregon (Siuslaw River / USCG Pier, Station 9434098). Interactive 24-hour tide curve, high and low extremes, and datum reference — MLLW in feet.">
+    <title>Siuslaw Tide Tracker — Florence &amp; OR 126 at Cushman</title>
+    <meta name="description" content="Live NOAA tide predictions for Florence, Oregon (Siuslaw River / USCG Pier, Station 9434098) and Cushman (Station 9434068) — including a tide-driven high-water watch for OR 126 at Cushman.">
     <meta name="theme-color" content="#0f172a">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Florence, OR — Live NOAA Tide Tracker">
-    <meta property="og:description" content="24-hour NOAA tide curve, highs, lows and current water level for Florence, Oregon (Siuslaw River Entrance).">
+    <meta property="og:title" content="Siuslaw Tide Tracker — Florence &amp; OR 126 at Cushman">
+    <meta property="og:description" content="24-hour NOAA tide curve, highs, lows and current water level for Florence, Oregon — plus an OR 126 / Cushman high-water watch built from NOAA tides, USGS river flow and NWS alerts.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f172a'/%3E%3Cpath d='M4 20c3-4 5-4 8 0s5 4 8 0 5-4 8 0' stroke='%2306b6d4' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Cpath d='M4 13c3-4 5-4 8 0s5 4 8 0 5-4 8 0' stroke='%230e7490' stroke-width='2.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -34,17 +34,21 @@
                 </div>
                 <div>
                     <h1 class="font-bold text-xl tracking-wide text-white flex items-center gap-2">
-                        Florence Tide Tracker
+                        Siuslaw Tide Tracker
                         <span id="datasourceBadge" class="text-xs bg-slate-700/60 text-slate-300 border border-slate-600/50 font-medium px-2 py-0.5 rounded-full flex items-center gap-1">
                             <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span> Connecting…
                         </span>
                     </h1>
-                    <p class="text-xs text-slate-400">Florence USCG Pier, Siuslaw River, OR • NOAA Station 9434098</p>
+                    <p id="stationSubtitle" class="text-xs text-slate-400">Florence USCG Pier, Siuslaw River, OR • NOAA Station 9434098</p>
                 </div>
             </div>
 
-            <!-- Date Selector & Controls -->
-            <div class="flex items-center gap-3 text-sm">
+            <!-- Station switch, Date Selector & Controls -->
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+                <div id="stationSwitch" class="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-lg p-0.5 text-xs" role="tablist" aria-label="Station">
+                    <button class="station-btn px-3 py-1.5 rounded-md transition" data-station="florence" role="tab" aria-selected="true">Florence Waterfront</button>
+                    <button class="station-btn px-3 py-1.5 rounded-md transition" data-station="cushman" role="tab" aria-selected="false">Hwy 126 · Cushman</button>
+                </div>
                 <div class="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5">
                     <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
                     <input type="date" id="datePicker" class="bg-transparent text-slate-200 outline-none cursor-pointer text-sm" aria-label="Select tide date">
@@ -67,6 +71,76 @@
             </span>
             <button id="retryApiBtn" class="underline hover:text-white shrink-0">Retry Connection</button>
         </div>
+
+        <!-- ============ OR 126 / CUSHMAN HIGH-WATER PANEL (Cushman view only) ============ -->
+        <section id="hwyPanel" class="hidden rounded-2xl border border-slate-700/60 overflow-hidden">
+            <div class="p-5 md:p-6 border-b border-slate-700/60 bg-slate-800/70 backdrop-blur">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                    <div class="flex items-start gap-3 min-w-0">
+                        <div class="p-2.5 rounded-xl bg-slate-900/70 border border-slate-700/60 text-cyan-400 shrink-0">
+                            <i data-lucide="route" class="w-5 h-5"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <h2 class="font-bold text-white text-base flex flex-wrap items-center gap-2">
+                                OR 126 at Cushman
+                                <span class="text-[10px] font-medium uppercase tracking-wider text-slate-400 border border-slate-600/60 rounded px-1.5 py-0.5">3 mi E of Florence</span>
+                            </h2>
+                            <p id="hwyHeadline" class="text-sm text-slate-300 mt-1">Reading the tide at Cushman…</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <label class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            Flooding mark
+                            <select id="markSelect" class="bg-slate-900 border border-slate-700 rounded-md text-slate-200 text-xs px-2 py-1 outline-none cursor-pointer">
+                                <option value="7.5">7.5 ft</option>
+                                <option value="8" selected>8.0 ft</option>
+                                <option value="8.5">8.5 ft</option>
+                                <option value="9">9.0 ft</option>
+                            </select>
+                        </label>
+                        <span id="hwyVerdict" class="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-700 text-slate-300 whitespace-nowrap">…</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-px bg-slate-700/40">
+                <!-- Tide against the mark -->
+                <div class="bg-slate-800/40 p-4">
+                    <div class="flex items-center gap-2 text-cyan-400 mb-2">
+                        <i data-lucide="waves" class="w-4 h-4"></i>
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Tide vs. the mark</span>
+                    </div>
+                    <div id="hwyPeak" class="text-lg font-bold text-white">--</div>
+                    <div id="hwyWindow" class="text-xs text-slate-400 mt-1 leading-relaxed">--</div>
+                </div>
+                <!-- River -->
+                <div class="bg-slate-800/40 p-4">
+                    <div class="flex items-center gap-2 text-indigo-300 mb-2">
+                        <i data-lucide="droplets" class="w-4 h-4"></i>
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">River behind it</span>
+                    </div>
+                    <div id="hwyRiver" class="text-lg font-bold text-white">--</div>
+                    <div id="hwyRiverSub" class="text-xs text-slate-400 mt-1 leading-relaxed">--</div>
+                </div>
+                <!-- NWS -->
+                <div class="bg-slate-800/40 p-4">
+                    <div class="flex items-center gap-2 text-amber-400 mb-2">
+                        <i data-lucide="triangle-alert" class="w-4 h-4"></i>
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">NWS alerts</span>
+                    </div>
+                    <div id="hwyAlerts" class="text-lg font-bold text-white">--</div>
+                    <div id="hwyAlertsSub" class="text-xs text-slate-400 mt-1 leading-relaxed">--</div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3 bg-slate-900/60 border-t border-slate-700/60 text-[11px] leading-relaxed text-slate-500">
+                <span class="text-slate-400">Estimate, not an official road report.</span>
+                Tide is NOAA's harmonic prediction for Cushman (9434068); river flow is live USGS at Mapleton; alerts are live NWS.
+                Water has covered OR 126 here on king tides near 8 ft — ODOT decides closures, so check
+                <a href="https://tripcheck.com/" target="_blank" rel="noopener" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600">TripCheck</a>
+                before you drive.
+            </div>
+        </section>
 
         <!-- Live Overview Hero Grid -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -143,7 +217,7 @@
                             <i data-lucide="map-pin" class="w-4 h-4"></i>
                             <span class="text-xs text-slate-400">Coordinates</span>
                         </div>
-                        <div class="text-xs font-bold text-slate-200">44.0021° N, 124.1230° W</div>
+                        <div id="stationCoords" class="text-xs font-bold text-slate-200">44.0021° N, 124.1230° W</div>
                     </div>
                     <div class="p-3 rounded-xl bg-slate-900/50 border border-slate-700/40">
                         <div class="flex items-center gap-2 text-cyan-400 mb-1">
@@ -172,11 +246,12 @@
         <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 backdrop-blur relative">
             <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
                 <div>
-                    <h2 class="font-bold text-lg text-white">Official NOAA 24-Hour Tide Curve</h2>
-                    <p id="chartSubtitle" class="text-xs text-slate-400">Six-minute predictions for Florence USCG Pier, Siuslaw River</p>
+                    <h2 id="chartTitle" class="font-bold text-lg text-white">Official NOAA 24-Hour Tide Curve</h2>
+                    <p id="chartSubtitle" class="text-xs text-slate-400">Six-minute predictions</p>
                 </div>
                 <div class="flex items-center gap-3 text-xs">
                     <span class="flex items-center gap-1 text-slate-300"><span class="w-3 h-3 rounded-full bg-cyan-400 inline-block"></span> NOAA Height (ft)</span>
+                    <span id="markLegend" class="hidden items-center gap-1 text-slate-300"><span class="w-3 h-0.5 bg-rose-400 inline-block"></span> Flooding mark</span>
                 </div>
             </div>
             <div class="w-full h-72">
@@ -210,16 +285,47 @@
 
     <!-- Footer -->
     <footer class="border-t border-slate-800 bg-slate-900/60 mt-10 py-6 text-center text-xs text-slate-500 space-y-1">
-        <p>Florence, Oregon (Siuslaw River) • Predictions from the <a href="https://api.tidesandcurrents.noaa.gov/api/prod/" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">NOAA CO-OPS Data API</a></p>
+        <p>Florence &amp; Cushman, Oregon (Siuslaw River) • Predictions from the <a href="https://api.tidesandcurrents.noaa.gov/api/prod/" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">NOAA CO-OPS Data API</a> • River flow <a href="https://waterdata.usgs.gov/monitoring-location/14307620/" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">USGS 14307620</a></p>
         <p>Heights referenced to MLLW, feet • Tides are predictions, not observations — never use for navigation.</p>
+        <p>Road-water status at Cushman is a tide-and-flow estimate, <span class="text-slate-400">not an ODOT closure report</span>.</p>
         <p class="pt-1"><a href="https://github.com/nwfella/florence-tide-tables" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">Source &amp; build notes on GitHub</a> · <a href="https://github.com/nwfella" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">Portfolio</a></p>
     </footer>
 
     <!-- Application Script -->
     <script>
-        // ---------------------------------------------------------------- config
-        const NOAA_STATION_ID = "9434098"; // Florence USCG Pier, Siuslaw River, OR
+        // ============================================================== constants
+        const STATIONS = {
+            florence: {
+                id: '9434098',
+                name: 'Florence USCG Pier',
+                subtitle: 'Florence USCG Pier, Siuslaw River, OR • NOAA Station 9434098',
+                coords: '44.0021° N, 124.1230° W',
+                chartTitle: 'Official NOAA 24-Hour Tide Curve',
+                levelLabel: 'Current Water Level'
+            },
+            cushman: {
+                id: '9434068',
+                name: 'Cushman',
+                subtitle: 'Cushman, Siuslaw River, OR • NOAA Station 9434068 • 3 mi E of Florence on OR 126',
+                coords: '43.9850° N, 124.0450° W',
+                chartTitle: 'Official NOAA 24-Hour Tide Curve — Cushman',
+                levelLabel: 'Tide Level at Cushman'
+            }
+        };
+
+        // OR 126 / Cushman road-water heuristic inputs. Why these numbers: reported
+        // closures at Cushman came on king tides near 8 ft with rain / a high river.
+        const ROAD = {
+            usgsSite: '14307620',          // Siuslaw River near Mapleton — upstream of Cushman
+            alertsPoint: '43.985,-124.045',
+            defaultMark: 8.0,              // ft MLLW at station 9434068
+            watchBand: 0.5,                // ft below the mark that still deserves a look
+            riverElevatedRatio: 1.5        // discharge >= 1.5x the date's median = elevated
+        };
+
         let tideChartInstance = null;
+        let renderSeq = 0;                 // stale-response guard for station/date switches
+        const state = { station: 'florence', date: null, mark: ROAD.defaultMark };
 
         lucide.createIcons();
 
@@ -232,6 +338,8 @@
         }
 
         const todayStr = localDateStr(new Date());
+        state.date = todayStr;
+
         const datePicker = document.getElementById('datePicker');
         datePicker.value = todayStr;
         datePicker.max = localDateStr(new Date(Date.now() + 365 * 864e5)); // predictions ~1 yr out
@@ -248,6 +356,8 @@
             return `${h}:${m} ${ampm}`;
         }
 
+        const shortTime = d => d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
         // Parsed local Date from a NOAA "YYYY-MM-DD HH:MM" string.
         function parseNoaaLocal(dateTimeStr) {
             const [d, t] = dateTimeStr.split(' ');
@@ -263,24 +373,26 @@
             return h > 0 ? `${h}h ${m}m` : `${m}m`;
         }
 
+        const fmtDate = s => new Date(s + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        const fmtShortDate = s => new Date(s + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
         // -------------------------------------------------------------- fetching
         // NOAA CO-OPS predictions. NOTE: `date=exact` is NOT a valid value — the
         // API accepts begin_date/end_date (or range) and rejects the request with
         // HTTP 400 otherwise. That silently forced every visit onto the fallback.
-        function noaaUrl(dateStr, interval) {
-            const d = noaaDate(dateStr);
+        function noaaUrl(stationId, dateStr, interval) {
             const base = 'https://api.tidesandcurrents.noaa.gov/api/prod/datagetter' +
-                `?product=predictions&station=${NOAA_STATION_ID}&datum=MLLW` +
+                `?product=predictions&station=${stationId}&datum=MLLW` +
                 '&time_zone=lst_ldt&units=english&format=json' +
-                `&begin_date=${d}&range=24`;
+                `&begin_date=${noaaDate(dateStr)}&range=24`;
             return interval ? `${base}&interval=${interval}` : base; // no interval = 6-min
         }
 
-        async function fetchNoaaTides(dateStr) {
+        async function fetchNoaaTides(stationId, dateStr) {
             try {
                 const [respExtremes, respCurve] = await Promise.all([
-                    fetch(noaaUrl(dateStr, 'hilo')),
-                    fetch(noaaUrl(dateStr, null))
+                    fetch(noaaUrl(stationId, dateStr, 'hilo')),
+                    fetch(noaaUrl(stationId, dateStr, null))
                 ]);
                 if (!respExtremes.ok || !respCurve.ok) throw new Error('NOAA HTTP ' + respExtremes.status);
 
@@ -310,14 +422,14 @@
             } catch (err) {
                 console.warn('NOAA unavailable, using local estimate:', err);
                 updateDataBadge(false);
-                return { ...generateFlorenceHarmonicTides(dateStr), live: false };
+                return { ...generateFallbackTides(dateStr), live: false };
             }
         }
 
         // Offline estimate only: a crude mixed-harmonic approximation tuned to the
-        // Florence range (~-1.5 to +8.5 ft MLLW). It is NOT NOAA data and the UI
-        // says so — do not label it as official.
-        function generateFlorenceHarmonicTides(dateStr) {
+        // Siuslaw range (~-1.5 to +9 ft MLLW). It is NOT NOAA data and the UI says
+        // so — do not label it as official.
+        function generateFallbackTides(dateStr) {
             const date = new Date(dateStr + 'T00:00:00');
             const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 864e5);
             const hourlyData = [];
@@ -348,6 +460,208 @@
             return { hourlyData, extremes };
         }
 
+        // --------------------------------------------------------- road context
+        // No proxy and no key: USGS Water Services and api.weather.gov both send
+        // Access-Control-Allow-Origin: * so the browser can call them directly.
+        async function fetchRiver() {
+            const out = { discharge: null, gage: null, when: null, median: null, monthly: null, error: null };
+            const ivUrl = `https://waterservices.usgs.gov/nwis/iv/?format=json&sites=${ROAD.usgsSite}&parameterCd=00060,00065`;
+            try {
+                const d = await (await fetch(ivUrl)).json();
+                for (const s of (d.value && d.value.timeSeries) || []) {
+                    const code = s.variable.variableCode[0].value;
+                    const vals = (s.values && s.values[0] && s.values[0].value) || [];
+                    if (!vals.length) continue;
+                    const last = vals[vals.length - 1];
+                    if (code === '00060') { out.discharge = parseFloat(last.value); out.when = new Date(last.dateTime); }
+                    if (code === '00065') out.gage = parseFloat(last.value);
+                }
+            } catch (_) {
+                out.error = 'river';
+                return out;
+            }
+
+            // Seasonal median for today's date. The USGS stat service is RDB-only,
+            // so parse the tab-separated text instead of asking for JSON.
+            const now = new Date();
+            const statUrl = `https://waterservices.usgs.gov/nwis/stat/?format=rdb&sites=${ROAD.usgsSite}` +
+                '&statReportType=daily&statTypeCd=p50&parameterCd=00060';
+            try {
+                const txt = await (await fetch(statUrl)).text();
+                const month = now.getMonth() + 1, day = now.getDate();
+                for (const line of txt.split('\n')) {
+                    if (!line.startsWith('USGS\t')) continue;
+                    const f = line.split('\t');
+                    if (+f[5] === month && +f[6] === day) { out.median = parseFloat(f[10]); break; }
+                }
+                out.monthly = fmtShortDate(localDateStr(now));
+            } catch (_) { /* median is optional context */ }
+
+            return out;
+        }
+
+        async function fetchAlerts() {
+            try {
+                const d = await (await fetch(`https://api.weather.gov/alerts/active?point=${ROAD.alertsPoint}&status=actual`)).json();
+                const feats = (d.features || []).map(f => f.properties).filter(Boolean);
+                const relevant = feats.filter(p => /flood|coastal|surf|high water|hydrologic/i.test(p.event || ''));
+                return { relevant, all: feats };
+            } catch (_) {
+                return { relevant: [], all: [], error: true };
+            }
+        }
+
+        // Reported closures at Cushman came on ~8 ft king tides with the river up.
+        function roadVerdict(peakFt, riverRatio, alertLevel, mark) {
+            const elevated = riverRatio != null && riverRatio >= ROAD.riverElevatedRatio;
+            if (peakFt >= mark && (elevated || alertLevel >= 1)) return 'overflow';
+            if (peakFt >= mark) return 'watch';
+            if (peakFt >= mark - ROAD.watchBand && (elevated || alertLevel >= 2)) return 'watch';
+            return 'clear';
+        }
+
+        // Contiguous stretches at/above the mark, optionally only from `fromWhen`.
+        function exceedWindows(curve, mark, fromWhen) {
+            const runs = [];
+            let cur = null;
+            for (const pt of curve) {
+                if (fromWhen && pt.when < fromWhen) continue;
+                if (pt.height >= mark) {
+                    if (!cur) cur = { start: pt.when, end: pt.when, peak: pt.height, peakAt: pt.when };
+                    else {
+                        cur.end = pt.when;
+                        if (pt.height > cur.peak) { cur.peak = pt.height; cur.peakAt = pt.when; }
+                    }
+                } else if (cur) { runs.push(cur); cur = null; }
+            }
+            if (cur) runs.push(cur);
+            return runs;
+        }
+
+        const VERDICT_STYLE = {
+            overflow: 'bg-rose-500/15 text-rose-300 border border-rose-500/40',
+            watch: 'bg-amber-500/15 text-amber-300 border border-amber-500/40',
+            clear: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/40'
+        };
+        const VERDICT_TEXT = { overflow: 'Water on the road likely', watch: 'Borderline', clear: 'Tide below the mark' };
+        const PANEL_BORDER = { overflow: 'border-rose-500/40', watch: 'border-amber-500/40', clear: 'border-emerald-500/30' };
+
+        // -------------------------------------------------- OR 126 road panel UI
+        async function renderRoadPanel(seq, data, isToday) {
+            const panel = document.getElementById('hwyPanel');
+            panel.classList.remove('hidden');
+
+            const mark = state.mark;
+            const now = new Date();
+            const curve = data.hourlyData;
+
+            // Day peak. Prefer the NOAA high/low table over the six-minute curve so
+            // the headline time matches the extremes card and table exactly (the
+            // curve's max sample lands on 2:00 PM for a 1:57 PM high tide).
+            let peak;
+            const highs = data.extremes.filter(e => e.type === 'High');
+            if (highs.length) {
+                const h = highs.reduce((a, b) => (a.height >= b.height ? a : b));
+                peak = { height: h.height, when: h.when };
+            } else {
+                const c = curve.reduce((a, b) => (a.height >= b.height ? a : b));
+                peak = { height: c.height, when: c.when };
+            }
+
+            let windows = exceedWindows(curve, mark, isToday ? now : null);
+            if (isToday && windows.length === 0) {
+                // Nothing left today — look at tomorrow so the answer stays useful.
+                const tomorrow = localDateStr(new Date(now.getTime() + 864e5));
+                const next = await fetchNoaaTides(STATIONS.cushman.id, tomorrow);
+                if (seq !== renderSeq) return;   // a newer render superseded this one
+                windows = exceedWindows(next.hourlyData, mark, null).map(w => ({ ...w, tomorrow: true }));
+            }
+
+            const [river, alerts] = await Promise.all([fetchRiver(), fetchAlerts()]);
+            if (seq !== renderSeq) return;
+
+            const alertLevel = alerts.relevant.reduce((lvl, p) => {
+                const s = `${p.event} ${p.severity}`;
+                return /warning|severe|extreme/i.test(s) ? Math.max(lvl, 2) : Math.max(lvl, 1);
+            }, 0);
+            const ratio = (river.discharge != null && river.median) ? river.discharge / river.median : null;
+            const verdict = roadVerdict(peak.height, ratio, alertLevel, mark);
+
+            const pill = document.getElementById('hwyVerdict');
+            pill.className = `text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${VERDICT_STYLE[verdict]}`;
+            pill.textContent = VERDICT_TEXT[verdict];
+
+            const whenLabel = isToday ? 'today' : `on ${fmtShortDate(state.date)}`;
+            const nextWin = windows[0];
+
+            let headline;
+            if (verdict === 'overflow') {
+                headline = `Predicted peak of ${peak.height.toFixed(2)} ft at ${shortTime(peak.when)} ${whenLabel} — at or above the ${mark.toFixed(1)} ft mark with the river up or a flood alert active. Expect water at the low spot near the trestle.`;
+            } else if (verdict === 'watch') {
+                headline = peak.height >= mark
+                    ? `Predicted peak of ${peak.height.toFixed(2)} ft at ${shortTime(peak.when)} ${whenLabel} reaches the ${mark.toFixed(1)} ft mark, but the river is near normal and no flood alert is active — usually passable; watch it if rain sets in.`
+                    : `Predicted peak of ${peak.height.toFixed(2)} ft at ${shortTime(peak.when)} ${whenLabel} stays just under the ${mark.toFixed(1)} ft mark, with a flood alert or a high river behind it.`;
+            } else {
+                headline = `Predicted peak of ${peak.height.toFixed(2)} ft at ${shortTime(peak.when)} ${whenLabel} stays below the ${mark.toFixed(1)} ft mark — tide alone will not put water on the road.`;
+            }
+            document.getElementById('hwyHeadline').textContent = headline;
+
+            // card 1 — tide vs mark
+            document.getElementById('hwyPeak').textContent = `${peak.height.toFixed(2)} ft at ${shortTime(peak.when)}`;
+            const winEl = document.getElementById('hwyWindow');
+            if (nextWin) {
+                winEl.innerHTML = `At/above ${mark.toFixed(1)} ft${nextWin.tomorrow ? ' tomorrow' : ''}: ` +
+                    `<span class="text-slate-200 font-medium">${shortTime(nextWin.start)} – ${shortTime(nextWin.end)}</span> ` +
+                    `(peak ${nextWin.peak.toFixed(2)} ft at ${shortTime(nextWin.peakAt)})`;
+            } else {
+                winEl.textContent = `Never reaches ${mark.toFixed(1)} ft ${isToday ? 'in the next 24 h' : 'on this date'}.`;
+            }
+
+            // card 2 — river
+            const riverEl = document.getElementById('hwyRiver');
+            const riverSub = document.getElementById('hwyRiverSub');
+            if (river.discharge != null) {
+                riverEl.textContent = `${Math.round(river.discharge).toLocaleString()} cfs`;
+                const bits = [];
+                if (ratio != null) {
+                    const pct = Math.round((ratio - 1) * 100);
+                    const word = ratio >= ROAD.riverElevatedRatio ? 'well above'
+                        : ratio >= 1.15 ? 'above'
+                        : ratio <= 0.85 ? 'below' : 'near';
+                    bits.push(`${word} the ${river.monthly} median of ${Math.round(river.median).toLocaleString()} cfs` +
+                        (Math.abs(pct) >= 3 ? ` (${pct > 0 ? '+' : ''}${pct}%)` : ''));
+                }
+                if (river.gage != null) bits.push(`gage ${river.gage.toFixed(2)} ft`);
+                bits.push('USGS at Mapleton, upstream');
+                riverSub.textContent = bits.join(' · ');
+            } else {
+                riverEl.textContent = 'Unavailable';
+                riverSub.textContent = 'USGS gauge did not answer — river context missing, so the verdict leans on tide alone.';
+            }
+
+            // card 3 — NWS alerts
+            const alertsEl = document.getElementById('hwyAlerts');
+            const alertsSub = document.getElementById('hwyAlertsSub');
+            if (alerts.error) {
+                alertsEl.textContent = 'Unavailable';
+                alertsSub.textContent = 'api.weather.gov did not answer.';
+            } else if (alerts.relevant.length) {
+                alertsEl.textContent = alerts.relevant.length === 1 ? alerts.relevant[0].event : `${alerts.relevant.length} active`;
+                alertsSub.textContent = alerts.relevant.map(p => p.event).join(' · ');
+            } else {
+                alertsEl.textContent = 'None active';
+                alertsSub.textContent = alerts.all.length
+                    ? `No flood/coastal alerts (${alerts.all.length} other alert${alerts.all.length > 1 ? 's' : ''} for this point).`
+                    : 'No flood, coastal or high-water alerts for this point.';
+            }
+
+            panel.className = `rounded-2xl border overflow-hidden ${PANEL_BORDER[verdict]}`;
+            const legend = document.getElementById('markLegend');
+            legend.classList.remove('hidden');
+            legend.classList.add('flex');
+            lucide.createIcons();
+        }
+
         // -------------------------------------------------------------- badge UI
         function updateDataBadge(isLive) {
             const badge = document.getElementById('datasourceBadge');
@@ -364,7 +678,7 @@
             }
         }
 
-        // ------------------------------------------------------------ now marker
+        // ------------------------------------------------------------ chart bits
         const nowLinePlugin = {
             id: 'nowLine',
             afterDatasetsDraw(chart, _args, opts) {
@@ -389,8 +703,32 @@
             }
         };
 
-        // ---------------------------------------------------------------- chart
-        function renderChart(hourlyData, nowIndex) {
+        // Horizontal rule at the flooding mark — Cushman view only.
+        const markLinePlugin = {
+            id: 'markLine',
+            afterDatasetsDraw(chart, _args, opts) {
+                if (!opts || opts.ft == null) return;
+                const y = chart.scales.y.getPixelForValue(opts.ft);
+                if (!isFinite(y)) return;
+                const { ctx, chartArea } = chart;
+                ctx.save();
+                ctx.strokeStyle = 'rgba(251, 113, 133, 0.85)';
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                ctx.moveTo(chartArea.left, y);
+                ctx.lineTo(chartArea.right, y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#fb7185';
+                ctx.font = '600 10px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${opts.ft.toFixed(1)} ft mark`, chartArea.left + 6, y - 5);
+                ctx.restore();
+            }
+        };
+
+        function renderChart(hourlyData, nowIndex, markFt) {
             const ctx = document.getElementById('tideChart').getContext('2d');
             const labels = hourlyData.map(d => d.label);
             const values = hourlyData.map(d => d.height);
@@ -419,7 +757,7 @@
                         pointHoverBorderColor: '#ffffff'
                     }]
                 },
-                plugins: [nowLinePlugin],
+                plugins: [nowLinePlugin, markLinePlugin],
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
@@ -427,6 +765,7 @@
                     plugins: {
                         legend: { display: false },
                         nowLine: { index: nowIndex },
+                        markLine: { ft: markFt },
                         tooltip: {
                             backgroundColor: '#0f172a',
                             titleColor: '#94a3b8',
@@ -476,10 +815,34 @@
         }
 
         // ------------------------------------------------------------ dashboard
+        function applyStationChrome() {
+            const st = STATIONS[state.station];
+            document.getElementById('stationSubtitle').textContent = st.subtitle;
+            document.getElementById('chartTitle').textContent = st.chartTitle;
+            document.getElementById('stationCoords').textContent = st.coords;
+            document.querySelectorAll('.station-btn').forEach(btn => {
+                const on = btn.dataset.station === state.station;
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+                btn.className = 'station-btn px-3 py-1.5 rounded-md transition ' +
+                    (on ? 'bg-cyan-600 text-white font-medium shadow-sm' : 'text-slate-400 hover:text-slate-200');
+            });
+            if (state.station !== 'cushman') {
+                document.getElementById('hwyPanel').classList.add('hidden');
+                const legend = document.getElementById('markLegend');
+                legend.classList.add('hidden');
+                legend.classList.remove('flex');
+            }
+        }
+
         async function updateDashboard() {
-            const selectedDate = datePicker.value || todayStr;
-            const isToday = selectedDate === todayStr;
-            const tideData = await fetchNoaaTides(selectedDate);
+            const seq = ++renderSeq;
+            const st = STATIONS[state.station];
+            const isToday = state.date === todayStr;
+
+            applyStationChrome();
+
+            const tideData = await fetchNoaaTides(st.id, state.date);
+            if (seq !== renderSeq) return;
 
             const now = new Date();
             const nowHourVal = now.getHours() + now.getMinutes() / 60;
@@ -509,7 +872,7 @@
             const isRising = q.height >= p.height;
 
             document.getElementById('currentTideHeight').innerText = level.toFixed(1);
-            document.getElementById('levelCardLabel').innerText = isToday ? 'Current Water Level' : 'Water Level at Noon';
+            document.getElementById('levelCardLabel').innerText = isToday ? st.levelLabel : 'Water Level at Noon';
 
             const statusBadge = document.getElementById('tideStatusBadge');
             if (isToday) {
@@ -521,8 +884,7 @@
                     : '<i data-lucide="arrow-down-right" class="w-3.5 h-3.5"></i> Falling';
             } else {
                 statusBadge.className = 'flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-700/70 text-slate-300 border border-slate-600/50 whitespace-nowrap';
-                statusBadge.innerHTML = '<i data-lucide="calendar" class="w-3.5 h-3.5"></i> ' +
-                    new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                statusBadge.innerHTML = '<i data-lucide="calendar" class="w-3.5 h-3.5"></i> ' + fmtShortDate(state.date);
             }
 
             // Next extremes: today = next one still ahead of us; other days = first of that day.
@@ -533,7 +895,8 @@
             if (isToday && upcoming.length === 0) {
                 try {
                     const tomorrow = new Date(now.getTime() + 864e5);
-                    const next = await fetchNoaaTides(localDateStr(tomorrow));
+                    const next = await fetchNoaaTides(st.id, localDateStr(tomorrow));
+                    if (seq !== renderSeq) return;
                     upcoming = next.extremes;
                     document.getElementById('extremesCardLabel').innerText = 'First Tides Tomorrow';
                 } catch (_) { /* keep empty */ }
@@ -551,7 +914,7 @@
                 ? `${fmtDuration(soonest.when - now)} (${soonest.type.toLowerCase()})`
                 : '—';
 
-            // Meter: fixed -2 … +9 ft scale, matching the station's datum range.
+            // Meter: fixed -2 … +9 ft scale, matching the Siuslaw datum range.
             const pct = Math.min(100, Math.max(0, ((level + 2) / 11) * 100));
             document.getElementById('tideProgressMeter').style.width = `${pct}%`;
 
@@ -583,20 +946,53 @@
             });
 
             document.getElementById('chartSubtitle').innerText = (tideData.live ? 'Six-minute' : 'Estimated')
-                + ' predictions for Florence USCG Pier, Siuslaw River — '
-                + new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+                + ` predictions for ${st.name} — ${fmtDate(state.date)}`;
 
             lucide.createIcons();
-            renderChart(tideData.hourlyData, isToday ? levelIdx : null);
+            renderChart(tideData.hourlyData, isToday ? levelIdx : null, state.station === 'cushman' ? state.mark : null);
+
+            // Road panel last: it shares the render token, so a late response from a
+            // previous station or date can never repaint this view.
+            if (state.station === 'cushman') {
+                await renderRoadPanel(seq, tideData, isToday);
+            }
         }
 
         // Events
-        datePicker.addEventListener('change', updateDashboard);
+        datePicker.addEventListener('input', () => { state.date = datePicker.value || todayStr; });
+        datePicker.addEventListener('change', () => {
+            state.date = datePicker.value || todayStr;
+            updateDashboard();
+        });
         document.getElementById('todayBtn').addEventListener('click', () => {
             datePicker.value = localDateStr(new Date());
+            state.date = datePicker.value;
             updateDashboard();
         });
         document.getElementById('retryApiBtn').addEventListener('click', updateDashboard);
+
+        document.querySelectorAll('.station-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (state.station === btn.dataset.station) return;
+                state.station = btn.dataset.station;
+                updateDashboard();
+            });
+        });
+
+        document.getElementById('markSelect').addEventListener('change', e => {
+            state.mark = parseFloat(e.target.value) || ROAD.defaultMark;
+            try { localStorage.setItem('cushmanMark', String(state.mark)); } catch (_) {}
+            updateDashboard();
+        });
+
+        (function initMark() {
+            let saved = NaN;
+            try { saved = parseFloat(localStorage.getItem('cushmanMark')); } catch (_) {}
+            if (isFinite(saved) && saved > 0) {
+                state.mark = saved;
+                document.getElementById('markSelect').value = String(saved);
+            }
+        })();
 
         window.addEventListener('load', updateDashboard);
     </script>

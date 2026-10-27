@@ -3,3 +3,6 @@ dump.html
 measure.html
 chrome.err
 shot_*.png
+
+# local verification artifacts
+probe_*.html
