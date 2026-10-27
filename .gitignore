@@ -1,0 +1,5 @@
+# local verification artifacts
+dump.html
+measure.html
+chrome.err
+shot_*.png
