@@ -24,6 +24,7 @@ A single-file tide dashboard for the Siuslaw River, Oregon — **Florence** (NOA
 - **Tide vs. the mark** — the day's predicted peak and the exact window the tide sits at or above the mark, e.g. `12:48 PM – 3:06 PM (peak 8.69 ft)`.
 - **River behind it** — live USGS discharge and gage height at Mapleton (upstream), compared with that calendar day's **50th-percentile flow** over the gauge's record, so "408 cfs" becomes "near the Oct 27 median of 385 cfs".
 - **NWS alerts** — active flood / coastal / high-water alerts for the point, straight from `api.weather.gov`.
+- **ODOT camera** — the TripCheck still from **OR 126 at Cushman, MP 3.05, looking east** at the trestle underpass. It's the one pane that shows water on the road directly; the frame carries its own "Updated" stamp, and the page re-fetches it every minute while the tab is visible.
 - A dashed **flooding-mark line** on the chart, and a **Flooding mark** selector (7.5 / 8.0 / 8.5 / 9.0 ft) that persists in `localStorage`, so locals can tune it to what they actually see.
 
 Both views share one date picker and one render pipeline, and a render-token guard drops any late response from a previous station or date, so the two views can never disagree about the same state.
@@ -62,6 +63,14 @@ So ~8 ft is where water has reached the road, and wet weather moves the practica
 - Tide gates, culverts and local drainage aren't modelled; the Mapleton gauge is upstream and only a proxy for how hard the river is pushing back.
 - **ODOT decides closures.** The panel links [TripCheck](https://tripcheck.com/) for the actual road status.
 
+### The camera
+
+ODOT's roadside stills are **not a public API**. The image is served straight from `tripcheck.com/RoadCams/cams/<filename>`, where the filename embeds ODOT's published-image id — this one is `ORE126 at Cushman_pid2651.JPG`, resolved from [the TripCheck camera inventory](https://tripcheck.com/Scripts/map/data/cctvinventory.js) (`cameraId 548`, `route OR126`, `title "OR126 at Cushman"`).
+
+- **Cadence:** measured by polling `Last-Modified` — `20:58:52Z` then `21:04:33Z`, so ODOT republishes roughly every **5½ minutes**. The page re-fetches every 60 s (and on tab focus) with a `?t=` cache-buster, so the still is never more than a minute behind ODOT.
+- **No CORS on the inventory file**, so the page can't re-resolve the filename by itself. If ODOT re-publishes the camera the image 404s, the page hides it and links out to TripCheck instead of showing a broken frame. To fix, re-read the inventory and update `CAM.cushman.url`.
+- There is a second camera in the inventory, `Siuslaw River Florence (USCG)` (`pid4901`) — it currently serves a **"This image is currently unavailable"** placeholder last updated 17 Oct, so the Florence view deliberately has no camera pane. Check `Last-Modified` before adding it.
+
 ## Data notes
 
 | | Florence | Cushman |
@@ -96,6 +105,7 @@ Runtime dependencies are three public CDNs: Tailwind (Play CDN), Chart.js 4, and
 1. **The API rejects `date=exact`.** An earlier revision passed `date=exact&begin_date=YYYYMMDD`, which returns **HTTP 400 `Wrong Date: The supported date values are: latest, recent, or today`** — every request failed and the page silently fell back to the synthetic curve while still claiming "NOAA Live". The correct form is `begin_date=YYYYMMDD&range=24` (or an explicit `end_date`).
 2. **USGS daily statistics are RDB-only.** `nwis/stat` returns `text/plain` even when asked for JSON, so the p50 lookup parses tab-separated text; `nwis/iv` does have a JSON format.
 3. **Six-minute samples give off-hour labels.** Chart ticks are filtered to clean 3-hour marks, and the grid-line colour is scriptable so only those ticks draw a rule — otherwise 240 samples hatch the plot.
+4. **A camera still needs a cache-buster and an existence check.** ODOT serves `Last-Modified` but no `Cache-Control`, so `<img src>` will happily re-display a still from an hour ago; append `?t=Date.now()` on each refresh. And the URL is not stable — the published-image id in the filename changes when ODOT re-publishes a camera, so wire an `onerror` fallback instead of trusting a hardcoded path forever.
 
 ## License
 

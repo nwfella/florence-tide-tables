@@ -133,6 +133,24 @@
                 </div>
             </div>
 
+            <!-- ODOT camera: the one view that actually shows water on the road -->
+            <div class="bg-slate-800/40 border-t border-slate-700/40 p-4 md:p-5">
+                <div class="flex flex-col md:flex-row gap-4 md:items-start">
+                    <a id="camLink" href="https://tripcheck.com/Pages/Road-Conditions" target="_blank" rel="noopener" class="shrink-0 mx-auto md:mx-0">
+                        <img id="cushmanCam" alt="ODOT camera at OR 126 and Cushman, looking east toward the trestle underpass"
+                             width="328" height="314" loading="lazy" decoding="async"
+                             class="rounded-xl border border-slate-700/60 w-[328px] max-w-full h-auto">
+                    </a>
+                    <div class="min-w-0 text-xs leading-relaxed text-slate-400">
+                        <div class="flex items-center gap-2 mb-1 text-slate-300 font-semibold text-[11px] uppercase tracking-wider">
+                            <i data-lucide="camera" class="w-4 h-4 text-cyan-400"></i> ODOT camera — MP 3.05, looking east
+                        </div>
+                        <p>TripCheck still of the road at the trestle underpass, the low spot that closes first. The frame carries its own “Updated” stamp; ODOT republishes roughly every 5 minutes.</p>
+                        <p id="camStatus" class="mt-1.5 text-slate-500">Loading camera…</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="px-5 py-3 bg-slate-900/60 border-t border-slate-700/60 text-[11px] leading-relaxed text-slate-500">
                 <span class="text-slate-400">Estimate, not an official road report.</span>
                 Tide is NOAA's harmonic prediction for Cushman (9434068); river flow is live USGS at Mapleton; alerts are live NWS.
@@ -326,6 +344,23 @@
         let tideChartInstance = null;
         let renderSeq = 0;                 // stale-response guard for station/date switches
         const state = { station: 'florence', date: null, mark: ROAD.defaultMark };
+
+        // ODOT TripCheck stills. Not an official API: images are served straight
+        // from tripcheck.com/RoadCams/cams/<filename> and carry their own "Updated"
+        // stamp burned into the frame. Filenames embed ODOT's published-image id, so
+        // they change if a camera is re-published — resolve again from
+        // https://tripcheck.com/Scripts/map/data/cctvinventory.js (this one is cameraId 548).
+        const CAM = {
+            cushman: {
+                url: 'https://tripcheck.com/RoadCams/cams/ORE126%20at%20Cushman_pid2651.JPG',
+                page: 'https://tripcheck.com/Pages/Road-Conditions',
+                name: 'OR126 at Cushman'
+            }
+        };
+        // Measured cadence: ODOT republished 20:58:52Z then 21:04:33Z (~5m40s), so
+        // polling every minute bounds staleness without hammering the origin.
+        const CAM_REFRESH_MS = 60000;
+        let camTimer = null;
 
         lucide.createIcons();
 
@@ -678,6 +713,49 @@
             }
         }
 
+        // ---------------------------------------------------------- camera still
+        function refreshCamera() {
+            const img = document.getElementById('cushmanCam');
+            if (!img) return;
+            // Cache-bust: without a changing query the browser happily keeps showing
+            // the still it fetched minutes ago.
+            img.src = `${CAM.cushman.url}?t=${Date.now()}`;
+        }
+
+        function startCamera() {
+            const img = document.getElementById('cushmanCam');
+            const status = document.getElementById('camStatus');
+            if (!img || !status) return;
+
+            if (!img.dataset.wired) {
+                img.dataset.wired = '1';
+                img.addEventListener('load', () => {
+                    img.classList.remove('hidden');
+                    status.className = 'mt-1.5 text-slate-500';
+                    status.textContent = `Still fetched ${shortTime(new Date())} · ODOT republishes roughly every 5 min`;
+                });
+                img.addEventListener('error', () => {
+                    img.classList.add('hidden');
+                    status.className = 'mt-1.5 text-amber-400/90';
+                    status.innerHTML = 'Camera image did not load — ODOT may have re-published it. ' +
+                        `<a class="underline hover:text-cyan-400" href="${CAM.cushman.page}" target="_blank" rel="noopener">Open TripCheck cameras</a>.`;
+                });
+            }
+
+            refreshCamera();
+            if (!camTimer) {
+                camTimer = setInterval(() => { if (!document.hidden) refreshCamera(); }, CAM_REFRESH_MS);
+            }
+        }
+
+        function stopCamera() {
+            if (camTimer) { clearInterval(camTimer); camTimer = null; }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && state.station === 'cushman') refreshCamera();
+        });
+
         // ------------------------------------------------------------ chart bits
         const nowLinePlugin = {
             id: 'nowLine',
@@ -826,8 +904,11 @@
                 btn.className = 'station-btn px-3 py-1.5 rounded-md transition ' +
                     (on ? 'bg-cyan-600 text-white font-medium shadow-sm' : 'text-slate-400 hover:text-slate-200');
             });
-            if (state.station !== 'cushman') {
+            if (state.station === 'cushman') {
+                startCamera();
+            } else {
                 document.getElementById('hwyPanel').classList.add('hidden');
+                stopCamera();
                 const legend = document.getElementById('markLegend');
                 legend.classList.add('hidden');
                 legend.classList.remove('flex');
@@ -891,22 +972,26 @@
             // After the final tide of the day (late evening), reach into tomorrow so the
             // card never advertises an event that already happened.
             document.getElementById('extremesCardLabel').innerText = isToday ? 'Upcoming Extreme Tides' : 'Extreme Tides That Day';
-            let upcoming = tideData.extremes.filter(e => !isToday || e.when >= now);
-            if (isToday && upcoming.length === 0) {
-                try {
-                    const tomorrow = new Date(now.getTime() + 864e5);
-                    const next = await fetchNoaaTides(st.id, localDateStr(tomorrow));
-                    if (seq !== renderSeq) return;
-                    upcoming = next.extremes;
-                    document.getElementById('extremesCardLabel').innerText = 'First Tides Tomorrow';
-                } catch (_) { /* keep empty */ }
-            }
-            const nextHigh = upcoming.find(e => e.type === 'High');
-            const nextLow = upcoming.find(e => e.type === 'Low');
+            const upcoming = tideData.extremes.filter(e => !isToday || e.when >= now);
+            let nextHigh = upcoming.find(e => e.type === 'High');
+            let nextLow = upcoming.find(e => e.type === 'Low');
 
-            document.getElementById('nextHighTime').innerText = nextHigh ? nextHigh.time : '—';
+            // Late in the day one side runs out: at 2 PM today's high has passed, so the
+            // next HIGH is tomorrow's. Fill it in rather than showing "—" until midnight.
+            if (isToday && (!nextHigh || !nextLow)) {
+                try {
+                    const tmr = await fetchNoaaTides(st.id, localDateStr(new Date(now.getTime() + 864e5)));
+                    if (seq !== renderSeq) return;
+                    if (!nextHigh) nextHigh = tmr.extremes.find(e => e.type === 'High' && e.when >= now);
+                    if (!nextLow) nextLow = tmr.extremes.find(e => e.type === 'Low' && e.when >= now);
+                } catch (_) { /* leave the dash */ }
+            }
+
+            const whenText = ev => (ev && localDateStr(ev.when) !== localDateStr(now)) ? `${ev.time} · tomorrow` : (ev ? ev.time : '—');
+
+            document.getElementById('nextHighTime').innerText = whenText(nextHigh);
             document.getElementById('nextHighHeight').innerText = nextHigh ? `${nextHigh.height.toFixed(2)} ft` : '-- ft';
-            document.getElementById('nextLowTime').innerText = nextLow ? nextLow.time : '—';
+            document.getElementById('nextLowTime').innerText = whenText(nextLow);
             document.getElementById('nextLowHeight').innerText = nextLow ? `${nextLow.height.toFixed(2)} ft` : '-- ft';
 
             const soonest = [nextHigh, nextLow].filter(Boolean).sort((a, b) => a.when - b.when)[0];
