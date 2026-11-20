@@ -29,6 +29,28 @@ A single-file tide dashboard for the Siuslaw River, Oregon — **Florence** (NOA
 
 Both views share one date picker and one render pipeline, and a render-token guard drops any late response from a previous station or date, so the two views can never disagree about the same state.
 
+## Choose your default tab
+
+Two ways, because they solve different problems.
+
+**Pin it for yourself.** Tick **“Remember this tab”** in the header while you're on the tab you want. That browser will open there from now on — untick it to go back to Florence. It's a single `localStorage` key (`defaultStation`), no account, no cookie, nothing sent anywhere.
+
+**Send someone the tab.** Add `?station=` to the URL and share it:
+
+```
+https://nwfella.github.io/florence-tide-tables/?station=cushman   ← camera + road status first
+https://nwfella.github.io/florence-tide-tables/?station=florence  ← waterfront dashboard first
+```
+
+Precedence is **URL → remembered tab → Florence**. A shared link always opens what the sender intended, and it deliberately does **not** overwrite the recipient's saved preference — they can pin it themselves if they want to keep it.
+
+Worth knowing before you rely on it:
+
+- The setting is **per browser, per device**. Pinned on your phone ≠ pinned on your desktop, and Safari and Chrome keep separate storage. The `?station=` link is the only thing that travels between people.
+- Private/incognito windows and some managed work machines block or wipe `localStorage`. Everything is wrapped in `try/catch`, so the page still works — it just forgets and opens on Florence next time.
+- An unrecognised value (`?station=…` typo) is ignored rather than trusted, so you fall back to your saved tab instead of an empty view.
+- The tab buttons stay visible whatever you pin, so nobody gets stuck on a tab with no obvious way back.
+
 ## Can NOAA tide data alone answer "is Cushman flooded?"
 
 Not reliably — and the app says so. Tide is the biggest factor (the road floods *at high tide* and drains as it falls), but the low spot under the rail trestle on OR 126 also depends on how much fresh water the Siuslaw is pushing down, and on rain. So the verdict is a documented heuristic over three live feeds, not a single tide number:
@@ -118,6 +140,10 @@ Runtime dependencies are three public CDNs: Tailwind (Play CDN), Chart.js 4, and
 2. **USGS daily statistics are RDB-only.** `nwis/stat` returns `text/plain` even when asked for JSON, so the p50 lookup parses tab-separated text; `nwis/iv` does have a JSON format.
 3. **Six-minute samples give off-hour labels.** Chart ticks are filtered to clean 3-hour marks, and the grid-line colour is scriptable so only those ticks draw a rule — otherwise 240 samples hatch the plot.
 4. **A camera still needs a cache-buster and an existence check.** ODOT serves `Last-Modified` but no `Cache-Control`, so `<img src>` will happily re-display a still from an hour ago; append `?t=Date.now()` on each refresh. And the URL is not stable — the published-image id in the filename changes when ODOT re-publishes a camera, so wire an `onerror` fallback instead of trusting a hardcoded path forever.
+
+## Version
+
+Current: **v1.2.0**. Full history in [CHANGELOG.md](CHANGELOG.md) and on the [releases page](https://github.com/nwfella/florence-tide-tables/releases).
 
 ## License
 

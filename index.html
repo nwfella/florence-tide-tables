@@ -56,6 +56,10 @@
                 <button id="todayBtn" class="bg-cyan-600 hover:bg-cyan-500 text-white font-medium px-3 py-1.5 rounded-lg transition text-xs shadow-sm flex items-center gap-1.5">
                     <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Today
                 </button>
+                <label id="pinRow" class="flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-slate-300 cursor-pointer select-none px-1" title="Remember this tab for this browser. Shared links with ?station= still win.">
+                    <input type="checkbox" id="pinDefault" class="w-3.5 h-3.5 accent-cyan-500 cursor-pointer">
+                    <span id="pinLabel">Remember this tab</span>
+                </label>
             </div>
         </div>
     </header>
@@ -306,7 +310,7 @@
         <p>Florence &amp; Cushman, Oregon (Siuslaw River) • Predictions from the <a href="https://api.tidesandcurrents.noaa.gov/api/prod/" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">NOAA CO-OPS Data API</a> • River flow <a href="https://waterdata.usgs.gov/monitoring-location/14307620/" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">USGS 14307620</a></p>
         <p>Heights referenced to MLLW, feet • Tides are predictions, not observations — never use for navigation.</p>
         <p>Road-water status at Cushman is a tide-and-flow estimate, <span class="text-slate-400">not an ODOT closure report</span>.</p>
-        <p class="pt-1"><a href="https://github.com/nwfella/florence-tide-tables" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">Source &amp; build notes on GitHub</a> · <a href="https://github.com/nwfella" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">Portfolio</a></p>
+        <p class="pt-1"><a href="https://github.com/nwfella/florence-tide-tables" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">Source &amp; build notes on GitHub</a> · <a href="https://github.com/nwfella/florence-tide-tables/releases" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">v1.2.0</a> · <a href="https://github.com/nwfella" class="text-slate-400 hover:text-cyan-400 underline decoration-slate-600" target="_blank" rel="noopener">Portfolio</a></p>
     </footer>
 
     <!-- Application Script -->
@@ -343,7 +347,33 @@
 
         let tideChartInstance = null;
         let renderSeq = 0;                 // stale-response guard for station/date switches
-        const state = { station: 'florence', date: null, mark: ROAD.defaultMark };
+
+        // Which tab opens first. Precedence: ?station=<key> in the URL, then a tab the
+        // visitor pinned in this browser, then Florence. Read before the first render so
+        // someone who pinned Cushman never sees Florence flash past (or pay for its fetch).
+        const STATION_KEY = 'defaultStation';
+        function readRememberedStation() {
+            try {
+                const v = localStorage.getItem(STATION_KEY);
+                return Object.prototype.hasOwnProperty.call(STATIONS, v) ? v : null;
+            } catch (_) { return null; }   // private mode or a locked-down browser: don't remember
+        }
+        function rememberStation(key) {
+            try {
+                if (key) localStorage.setItem(STATION_KEY, key);
+                else localStorage.removeItem(STATION_KEY);
+            } catch (_) { /* storage unavailable — the page still works, it just forgets */ }
+        }
+        function stationFromUrl() {
+            try {
+                const v = new URLSearchParams(location.search).get('station');
+                return Object.prototype.hasOwnProperty.call(STATIONS, v) ? v : null;
+            } catch (_) { return null; }
+        }
+        const urlStation = stationFromUrl();
+        const defaultStation = urlStation || readRememberedStation() || 'florence';
+
+        const state = { station: defaultStation, date: null, mark: ROAD.defaultMark };
 
         // ODOT TripCheck stills. Not an official API: images are served straight
         // from tripcheck.com/RoadCams/cams/<filename> and carry their own "Updated"
@@ -940,6 +970,18 @@
         }
 
         // ------------------------------------------------------------ dashboard
+        function syncPin() {
+            const box = document.getElementById('pinDefault');
+            const label = document.getElementById('pinLabel');
+            if (!box || !label) return;
+            const remembered = readRememberedStation();
+            box.checked = remembered === state.station;
+            label.textContent = box.checked ? 'Opens on this tab' : 'Remember this tab';
+            label.title = box.checked
+                ? 'This browser opens on this tab. Untick to go back to Florence.'
+                : 'Remember this tab for this browser. Shared links with ?station= still win.';
+        }
+
         function applyStationChrome() {
             const st = STATIONS[state.station];
             document.getElementById('stationSubtitle').textContent = st.subtitle;
@@ -951,6 +993,7 @@
                 btn.className = 'station-btn px-3 py-1.5 rounded-md transition ' +
                     (on ? 'bg-cyan-600 text-white font-medium shadow-sm' : 'text-slate-400 hover:text-slate-200');
             });
+            syncPin();
             if (state.station === 'cushman') {
                 startCamera();
             } else {
@@ -1122,6 +1165,12 @@
             state.mark = parseFloat(e.target.value) || ROAD.defaultMark;
             try { localStorage.setItem('cushmanMark', String(state.mark)); } catch (_) {}
             updateDashboard();
+        });
+
+        // "Remember this tab": pin/unpin the tab the visitor is looking at.
+        document.getElementById('pinDefault').addEventListener('change', e => {
+            rememberStation(e.target.checked ? state.station : null);
+            syncPin();
         });
 
         (function initMark() {
